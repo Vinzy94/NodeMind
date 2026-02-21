@@ -576,6 +576,8 @@ function drawLinks(){
     const p2 = portPos(to, link.toSide || 'left');
     const hitPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    hitPath.setAttribute('data-link-id', link.id);
+    path.setAttribute('data-link-id', link.id);
     path.classList.add('link-path');
     if(selectedLinkId === link.id) path.classList.add('selected');
     const shape = link.shape || 'curve';
@@ -1455,7 +1457,43 @@ notesArea.addEventListener('input', saveLocal);
 taskArea.addEventListener('input', saveLocal);
 
 linkLayer.addEventListener('click', (e) => {
-  if(e.target && e.target.tagName && e.target.tagName.toLowerCase() === 'path') return;
+  if(e.target && e.target.tagName && e.target.tagName.toLowerCase() === 'path'){
+    const id = e.target.getAttribute('data-link-id');
+    const flow = getFlow();
+    const l = flow.links.find(v => v.id === id);
+    if(l){
+      selectedLinkId = l.id;
+      selectedNodeIds.clear();
+      selectedGroupId = null;
+      setPropertiesMode('link');
+      linkColor.value = l.color || '#222222';
+      linkWidth.value = String(l.width || 2);
+      linkShape.value = l.shape || 'curve';
+      renderScene();
+      return;
+    }
+  }
+  const rect = scene.getBoundingClientRect();
+  const x = (e.clientX - rect.left) / zoom;
+  const y = (e.clientY - rect.top) / zoom;
+  const flow = getFlow();
+  let best = null;
+  let bestDist = Infinity;
+  flow.links.forEach(l => {
+    const d = linkDistanceToPoint(l, x, y);
+    if(d < bestDist){ bestDist = d; best = l; }
+  });
+  if(best && bestDist <= 18){
+    selectedLinkId = best.id;
+    selectedNodeIds.clear();
+    selectedGroupId = null;
+    setPropertiesMode('link');
+    linkColor.value = best.color || '#222222';
+    linkWidth.value = String(best.width || 2);
+    linkShape.value = best.shape || 'curve';
+    renderScene();
+    return;
+  }
   selectedNodeIds.clear(); selectedGroupId = null; selectedLinkId = null; setPropertiesMode('all'); renderScene();
 });
 
@@ -1471,7 +1509,7 @@ scene.addEventListener('click', (e) => {
     const d = linkDistanceToPoint(l, x, y);
     if(d < bestDist){ bestDist = d; best = l; }
   });
-  if(best && bestDist <= 10){
+  if(best && bestDist <= 18){
     selectedLinkId = best.id;
     selectedNodeIds.clear();
     selectedGroupId = null;
@@ -1482,6 +1520,33 @@ scene.addEventListener('click', (e) => {
     renderScene();
   }
 });
+
+centerPanel.addEventListener('pointerdown', (e) => {
+  if(e.button !== 0) return;
+  if(e.target.closest('.node') || e.target.closest('.node-group') || e.target.classList.contains('port')) return;
+  const rect = scene.getBoundingClientRect();
+  const x = (e.clientX - rect.left) / zoom;
+  const y = (e.clientY - rect.top) / zoom;
+  const flow = getFlow();
+  let best = null;
+  let bestDist = Infinity;
+  flow.links.forEach(l => {
+    const d = linkDistanceToPoint(l, x, y);
+    if(d < bestDist){ bestDist = d; best = l; }
+  });
+  if(best && bestDist <= 22){
+    selectedLinkId = best.id;
+    selectedNodeIds.clear();
+    selectedGroupId = null;
+    setPropertiesMode('link');
+    linkColor.value = best.color || '#222222';
+    linkWidth.value = String(best.width || 2);
+    linkShape.value = best.shape || 'curve';
+    renderScene();
+    e.preventDefault();
+    e.stopPropagation();
+  }
+}, true);
 
 document.addEventListener('keydown', (e) => {
   const activeTag = (document.activeElement?.tagName || '').toLowerCase();

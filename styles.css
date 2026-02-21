@@ -36,12 +36,15 @@ body.theme-light textarea,body.theme-light input[type="text"],body.theme-light i
 .flow-del{margin-left:8px;border:none;background:transparent;color:#bbb;cursor:pointer;font-size:14px}
 .flow-del:hover{color:#fff}
 .panel{border-right:1px solid var(--border);border-left:1px solid var(--border);min-width:0;min-height:0;display:flex;flex-direction:column}
-.left-panel{grid-row:3;grid-column:1;border-left:none;background:var(--pane-bg)}
-.left-panel{overflow:hidden}
+.left-panel{grid-row:3;grid-column:1;border-left:none;background:var(--pane-bg);overflow-y:auto;overflow-x:hidden}
+.left-panel{scrollbar-width:thin;scrollbar-color:#7a7a7a #1a1a1a}
+.left-panel::-webkit-scrollbar{width:10px}
+.left-panel::-webkit-scrollbar-track{background:#1a1a1a}
+.left-panel::-webkit-scrollbar-thumb{background:#666;border-radius:8px}
 .panel-header{display:flex;align-items:center;justify-content:space-between;padding:8px;border-bottom:1px solid var(--border);gap:6px;flex-wrap:wrap}
 .search{width:100%;padding:7px;background:#0f0f0f;border:1px solid #3b3b3b;color:#ddd;border-radius:6px}
 .palette-controls{display:flex;gap:6px;width:100%}
-.categories{flex:1;min-height:0;overflow-y:scroll;overflow-x:hidden;scrollbar-gutter:stable;padding:10px;display:flex;flex-direction:column;gap:8px}
+.categories{overflow:visible;scrollbar-gutter:stable;-webkit-overflow-scrolling:touch;padding:10px;display:flex;flex-direction:column;gap:8px}
 .categories{scrollbar-width:thin;scrollbar-color:#7a7a7a #1a1a1a}
 .categories::-webkit-scrollbar{width:10px}
 .categories::-webkit-scrollbar-track{background:#1a1a1a}
@@ -56,7 +59,7 @@ body.theme-light textarea,body.theme-light input[type="text"],body.theme-light i
 .inline-color{width:24px;height:18px;padding:0;border:none;background:transparent}
 .collapsed .cat-items {display:none}
 .center-panel{grid-row:3;grid-column:2;position:relative;overflow:hidden;background:linear-gradient(0deg, rgba(0,0,0,.12) 1px, transparent 1px),linear-gradient(90deg, rgba(0,0,0,.12) 1px, transparent 1px),var(--bg-light);background-size:24px 24px;border-left:none;border-right:none}
-.canvas-overlay{position:absolute;inset:0;pointer-events:none;z-index:5}
+.canvas-overlay{position:absolute;inset:0;pointer-events:none;z-index:1}
 .scene{position:absolute;inset:0;transform-origin:top left;z-index:2}
 .selection-box{position:absolute;display:none;z-index:5;border:1px dashed #4c4c4c;background:rgba(120,120,120,.12);pointer-events:none}
 .node-group{position:absolute;border:2px dashed #7f8c8d;border-radius:10px;z-index:0;pointer-events:auto}
