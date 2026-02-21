@@ -19,12 +19,22 @@
       <select id="quickFontFamily"><option>Inter</option><option>Segoe UI</option><option>Roboto</option><option>Courier New</option></select>
       <input type="number" id="quickFontSize" min="10" max="48" value="14" title="Dimensione testo">
       <select id="quickTextAlign"><option value="left">◧</option><option value="center" selected>☰</option><option value="right">◨</option></select>
+      <button class="btn" id="quickBoldBtn" title="Grassetto">B</button>
+      <button class="btn" id="quickItalicBtn" title="Corsivo"><em>I</em></button>
+      <button class="btn" id="quickUnderlineBtn" title="Sottolineato"><u>U</u></button>
+      <button class="btn" id="quickBulletedBtn" title="Elenco puntato">• List</button>
+      <button class="btn" id="quickNumberedBtn" title="Elenco numerato">1. List</button>
     </div>
     <div class="quick-group">
       <label class="quick-lbl">Testo <input type="color" id="quickTextColor" value="#ffffff"></label>
-      <label class="quick-lbl">Nodo <input type="color" id="quickNodeColor" value="#2f80ed"></label>
-      <label class="quick-lbl">Gruppo <input type="color" id="quickGroupColor" value="#7f8c8d"></label>
+      <label class="quick-lbl">Nodo <input type="color" id="quickNodeColor" value="#2f80ed"><input type="range" id="quickNodeAlpha" min="0" max="1" step="0.05" value="1" title="Trasparenza nodo"></label>
+      <label class="quick-lbl">Gruppo <input type="color" id="quickGroupColor" value="#7f8c8d"><input type="range" id="quickGroupAlpha" min="0" max="1" step="0.05" value="0.2" title="Trasparenza gruppo"></label>
           </div>
+    <div class="quick-group">
+      <label class="quick-lbl">Sfondo
+        <select id="quickBgStyle"><option value="radial">Radiale soft</option><option value="grid" selected>Quadretti</option><option value="lines">Righe</option></select>
+      </label>
+    </div>
     <div class="quick-group">
       <button class="btn" id="quickCopyFormat">Copia formato</button>
       <button class="btn" id="quickPasteFormat">Incolla formato</button>
@@ -38,7 +48,7 @@
     <div class="categories" id="paletteCategories"></div>
   </aside>
 
-  <main class="panel center-panel" id="centerPanel">
+  <main class="panel center-panel" id="centerPanel" data-bg="grid">
     <svg class="canvas-overlay" id="linkLayer"></svg>
     <div class="scene" id="scene"></div>
     <div id="selectionBox" class="selection-box"></div>
@@ -170,6 +180,7 @@ const paletteData = [
   { name:'Logica', items:[{name:'Decisione', color:'#d35400'},{name:'Regola', color:'#2980b9'},{name:'Condizione', color:'#27ae60'}] },
   { name:'Output', items:[{name:'Risultato', color:'#e74c3c', type:'default'},{name:'Documento', color:'#34495e', type:'default'},{name:'Azione', color:'#7f8c8d', type:'default'}] },
   { name:'Speciali', items:[{name:'Codice', color:'#b7f5b0', type:'code'},{name:'HTML', color:'#f7c56d', type:'html'},{name:'Emoticon', color:'#8e44ad', type:'emoji'}] },
+  { name:'Input', items:[{name:'Casella testo', color:'#ecf0f1', type:'textbox'}] },
   { name:'Flowchart', items:[{name:'If', color:'#f1c40f', type:'if'},{name:'Attività', color:'#3498db', type:'activity'},{name:'In/Out', color:'#1abc9c', type:'inout'},{name:'Connettore', color:'#95a5a6', type:'connector'}] }
 ];
 
@@ -182,6 +193,7 @@ function nodeDefaultsByType(type='default'){
   if(type === 'activity') return {type, color:'#3498db', fontFamily:'Inter', fontSize:14, textColor:'#ffffff', textAlign:'center', label:'Attività'};
   if(type === 'inout') return {type, color:'#1abc9c', fontFamily:'Inter', fontSize:14, textColor:'#ffffff', textAlign:'center', label:'Input/Output'};
   if(type === 'connector') return {type, color:'#95a5a6', fontFamily:'Inter', fontSize:14, textColor:'#111111', textAlign:'center', label:'+', operator:'+'};
+  if(type === 'textbox') return {type, color:'#ecf0f1', fontFamily:'Inter', fontSize:14, textColor:'#111111', textAlign:'left', label:'Testo...', resizable:true};
   return {type:'default'};
 }
 function initFlow(name){
@@ -213,10 +225,23 @@ function measureNodeHeight(node){
   return Math.max(48, 20 + lines * ((node.fontSize || 14) * 1.35));
 }
 function toRgba(hex, alpha){
+  if(String(hex).startsWith('rgba(')) return hex;
   const clean = hex.replace('#','');
   const full = clean.length === 3 ? clean.split('').map(c=>c+c).join('') : clean;
   const r = parseInt(full.slice(0,2),16), g = parseInt(full.slice(2,4),16), b = parseInt(full.slice(4,6),16);
   return `rgba(${r}, ${g}, ${b}, ${Math.max(0, Math.min(1, Number(alpha || 0.2)))})`;
+}
+
+function withAlpha(color, alpha=1){
+  if(String(color).startsWith('rgba(')) return color;
+  return toRgba(color, alpha);
+}
+
+function formatListText(text, listType='none'){
+  const lines = String(text || '').split('\n');
+  if(listType === 'bullet') return lines.map(l => `• ${l}`).join('\n');
+  if(listType === 'numbered') return lines.map((l,i) => `${i+1}. ${l}`).join('\n');
+  return String(text || '');
 }
 
 function renderPalette(){
@@ -253,7 +278,7 @@ function renderPalette(){
   });
 }
 
-function addNode({id=uid(),label=null,color=null,x=80,y=80,fontSize=14,fontFamily='Inter',textColor='#ffffff',textAlign='center',type='default',operator='+'}){
+function addNode({id=uid(),label=null,color=null,x=80,y=80,fontSize=14,fontFamily='Inter',textColor='#ffffff',textAlign='center',type='default',operator='+',alpha=1}){
   const flow = getFlow();
   const defaults = nodeDefaultsByType(type);
   const step = flow.nodes.length % 6;
@@ -269,7 +294,12 @@ function addNode({id=uid(),label=null,color=null,x=80,y=80,fontSize=14,fontFamil
     textAlign: defaults.textAlign ?? textAlign,
     type: defaults.type || type,
     lockFont: defaults.lockFont || false,
-    operator: defaults.operator || operator
+    operator: defaults.operator || operator,
+    alpha,
+    fontWeight:'400',
+    fontStyle:'normal',
+    textDecoration:'none',
+    listType:'none'
   });
   selectedNodeIds = new Set([id]);
   renderScene();
@@ -334,17 +364,29 @@ function renderNodes(){
     node.dataset.id = nodeData.id;
     node.style.left = nodeData.x + 'px';
     node.style.top = nodeData.y + 'px';
-    node.style.background = nodeData.color;
+    node.style.background = withAlpha(nodeData.color, nodeData.alpha ?? 1);
     node.style.color = nodeData.textColor || '#fff';
     node.style.fontFamily = nodeData.lockFont ? 'monospace' : (nodeData.fontFamily || 'Inter');
     node.style.fontSize = (nodeData.fontSize || 14) + 'px';
     node.style.width = measureNodeWidth(nodeData) + 'px';
     node.style.textAlign = nodeData.textAlign || 'center';
+    node.style.fontWeight = nodeData.fontWeight || '400';
+    node.style.fontStyle = nodeData.fontStyle || 'normal';
+    node.style.textDecoration = nodeData.textDecoration || 'none';
 
     const label = document.createElement('div');
     label.className = 'node-label';
-    if(nodeData.type === 'html') label.innerHTML = nodeData.label;
-    else label.textContent = nodeData.label;
+    if(nodeData.type === 'textbox'){
+      const box = document.createElement('textarea');
+      box.className = 'node-textbox';
+      box.value = nodeData.label || '';
+      box.style.resize = 'both';
+      box.oninput = () => { nodeData.label = box.value; updateMermaid(); };
+      box.onmousedown = (e) => e.stopPropagation();
+      box.onclick = (e) => e.stopPropagation();
+      label.appendChild(box);
+    } else if(nodeData.type === 'html') label.innerHTML = nodeData.label;
+    else label.textContent = formatListText(nodeData.label, nodeData.listType || 'none');
     if(nodeData.type === 'if') label.classList.add('diamond-text');
     node.appendChild(label);
 
@@ -783,6 +825,7 @@ function fillGroupInputs(group){
   groupFontSize.value = group.fontSize || 14;
   groupTextAlign.value = group.textAlign || 'center';
   quickGroupColor.value = group.color || '#7f8c8d';
+  quickGroupAlpha.value = group.opacity ?? 0.2;
   quickFontFamily.value = group.fontFamily || 'Inter';
   quickFontSize.value = group.fontSize || 14;
   quickTextColor.value = group.textColor || '#ffffff';
@@ -818,6 +861,7 @@ function fillNodeInputsFromSelection(){
   quickFontSize.value = first.fontSize || 14;
   quickTextColor.value = first.textColor || '#ffffff';
   quickNodeColor.value = first.color || '#2f80ed';
+  quickNodeAlpha.value = first.alpha ?? 1;
   quickTextAlign.value = first.textAlign || 'center';
 }
 
@@ -1050,7 +1094,7 @@ function applyQuickFormatting(useFill=false){
         }
         node.textColor = quickTextColor.value;
         node.textAlign = quickTextAlign.value || 'center';
-        if(useFill) node.color = quickNodeColor.value;
+        if(useFill){ node.color = quickNodeColor.value; node.alpha = Number(quickNodeAlpha.value || 1); }
       }
     });
   }
@@ -1061,7 +1105,7 @@ function applyQuickFormatting(useFill=false){
       g.fontSize = Number(quickFontSize.value || g.fontSize || 14);
       g.textColor = quickTextColor.value;
       g.textAlign = quickTextAlign.value || 'center';
-      if(useFill) g.color = quickGroupColor.value;
+      if(useFill){ g.color = quickGroupColor.value; g.opacity = Number(quickGroupAlpha.value || 0.2); }
     }
   }
   updateMermaid();
@@ -1082,7 +1126,25 @@ function setupQuickBar(){
   quickTextAlign.onchange = applyText;
   quickTextColor.oninput = applyText;
   quickNodeColor.oninput = applyFill;
+  quickNodeAlpha.oninput = applyFill;
   quickGroupColor.oninput = applyFill;
+  quickGroupAlpha.oninput = applyFill;
+  quickBgStyle.onchange = () => {
+    centerPanel.dataset.bg = quickBgStyle.value || 'grid';
+    localStorage.setItem('nodemind_bg_style', centerPanel.dataset.bg);
+  };
+
+  const toggleNodeProp = (key, onVal, offVal='normal') => {
+    const flow = getFlow();
+    flow.nodes.forEach(n => { if(selectedNodeIds.has(n.id)) n[key] = (n[key] === onVal ? offVal : onVal); });
+    updateMermaid();
+    renderScene();
+  };
+  quickBoldBtn.onclick = () => toggleNodeProp('fontWeight', '700', '400');
+  quickItalicBtn.onclick = () => toggleNodeProp('fontStyle', 'italic', 'normal');
+  quickUnderlineBtn.onclick = () => toggleNodeProp('textDecoration', 'underline', 'none');
+  quickBulletedBtn.onclick = () => toggleNodeProp('listType', 'bullet', 'none');
+  quickNumberedBtn.onclick = () => toggleNodeProp('listType', 'numbered', 'none');
 
   quickCopyFormat.onclick = copyFormat;
   quickPasteFormat.onclick = pasteFormat;
@@ -1181,6 +1243,9 @@ function loadLocal(){
   const theme = localStorage.getItem('nodemind_theme') || 'dark';
   document.body.classList.toggle('theme-light', theme === 'light');
   themeToggleBtn.textContent = theme === 'light' ? '☀' : '☾';
+  const bgStyle = localStorage.getItem('nodemind_bg_style') || 'grid';
+  centerPanel.dataset.bg = bgStyle;
+  quickBgStyle.value = bgStyle;
   if(!flows.size) initFlow(currentFlow);
   renderFlows();
   loadFlowUI();
@@ -1451,6 +1516,18 @@ scene.addEventListener('drop', e => {
   let item = {name:'Nodo', color:'#2f80ed', type:'default'};
   try { item = JSON.parse(e.dataTransfer.getData('application/json')); } catch {}
   addNode({label:item.name,color:item.color,x:(e.clientX-rect.left)/zoom,y:(e.clientY-rect.top)/zoom,fontFamily:'Inter',textColor:'#fff',textAlign:'center',type:item.type || 'default'});
+});
+
+centerPanel.addEventListener('mousemove', (e) => {
+  const r = centerPanel.getBoundingClientRect();
+  const px = ((e.clientX - r.left) / Math.max(1, r.width)) * 100;
+  const py = ((e.clientY - r.top) / Math.max(1, r.height)) * 100;
+  centerPanel.style.setProperty('--bgx', px.toFixed(2) + '%');
+  centerPanel.style.setProperty('--bgy', py.toFixed(2) + '%');
+});
+centerPanel.addEventListener('mouseleave', () => {
+  centerPanel.style.setProperty('--bgx', '50%');
+  centerPanel.style.setProperty('--bgy', '50%');
 });
 
 notesArea.addEventListener('input', saveLocal);

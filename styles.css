@@ -59,14 +59,19 @@ body.theme-light textarea,body.theme-light input[type="text"],body.theme-light i
 .inline-color{width:24px;height:18px;padding:0;border:none;background:transparent}
 .collapsed .cat-items {display:none}
 .center-panel{grid-row:3;grid-column:2;position:relative;overflow:hidden;background:linear-gradient(0deg, rgba(0,0,0,.12) 1px, transparent 1px),linear-gradient(90deg, rgba(0,0,0,.12) 1px, transparent 1px),var(--bg-light);background-size:24px 24px;border-left:none;border-right:none}
-.canvas-overlay{position:absolute;inset:0;pointer-events:none;z-index:1}
-.scene{position:absolute;inset:0;transform-origin:top left;z-index:2}
+.center-panel{overflow:auto;--bgx:50%;--bgy:50%;background-image:radial-gradient(circle at var(--bgx) var(--bgy), rgba(255,255,255,.16), rgba(255,255,255,0) 180px),linear-gradient(0deg, rgba(0,0,0,.12) 1px, transparent 1px),linear-gradient(90deg, rgba(0,0,0,.12) 1px, transparent 1px),var(--bg-light)}
+.center-panel[data-bg="grid"]{background-image:linear-gradient(0deg, rgba(0,0,0,.12) 1px, transparent 1px),linear-gradient(90deg, rgba(0,0,0,.12) 1px, transparent 1px),var(--bg-light)}
+.center-panel[data-bg="lines"]{background-image:linear-gradient(0deg, rgba(0,0,0,.12) 1px, transparent 1px),var(--bg-light)}
+.center-panel[data-bg="radial"]{background-image:radial-gradient(circle at var(--bgx) var(--bgy), rgba(255,255,255,.16), rgba(255,255,255,0) 180px),linear-gradient(0deg, rgba(0,0,0,.12) 1px, transparent 1px),linear-gradient(90deg, rgba(0,0,0,.12) 1px, transparent 1px),var(--bg-light)}
+.canvas-overlay{position:absolute;top:0;left:0;pointer-events:none;z-index:1;width:2800px;height:1800px}
+.scene{position:relative;transform-origin:top left;z-index:2;width:2800px;height:1800px}
 .selection-box{position:absolute;display:none;z-index:5;border:1px dashed #4c4c4c;background:rgba(120,120,120,.12);pointer-events:none}
 .node-group{position:absolute;border:2px dashed #7f8c8d;border-radius:10px;z-index:0;pointer-events:auto}
 .node-group.selected{outline:2px solid #111}
 .group-title{padding:6px 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .node{position:absolute;min-width:140px;max-width:340px;padding:10px 12px;border-radius:10px;color:#fff;border:2px solid rgba(255,255,255,.3);cursor:move;user-select:none;box-shadow:0 4px 12px rgba(0,0,0,.2);white-space:pre-wrap;word-break:break-word;line-height:1.3;z-index:4}
 .node-label{white-space:pre-wrap;word-break:break-word;min-height:22px;user-select:text}
+.node-textbox{width:100%;min-height:48px;resize:both;border:1px solid rgba(0,0,0,.25);border-radius:6px;padding:6px;background:rgba(255,255,255,.9);color:#111;font-family:inherit}
 .node-label.editing{outline:1px dashed rgba(255,255,255,.8);padding:2px;cursor:text;background:rgba(0,0,0,.25);user-select:text}
 .node.selected{outline:3px solid #111}
 .node-toolbar{position:absolute;top:-24px;right:0;display:flex;gap:4px;opacity:0;transition:opacity .15s}
@@ -109,12 +114,13 @@ textarea,input[type="text"],input[type="color"],input[type="number"],select{widt
 .inline-props label{display:grid;gap:4px;font-size:12px;color:#bbb}
 .inline-props textarea,.inline-props input,.inline-props select{width:100%}
 
-.quickbar{position:fixed;left:300px;right:330px;top:98px;z-index:1100;background:#f2f2f2;color:#111;border:1px solid #bcbcbc;border-radius:8px;display:flex;gap:8px;align-items:center;padding:6px 8px;box-shadow:0 6px 18px rgba(0,0,0,.2)}
+.quickbar{position:fixed;left:300px;right:330px;top:98px;z-index:1100;background:#f2f2f2;color:#111;border:1px solid #bcbcbc;border-radius:8px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:6px 8px;box-shadow:0 6px 18px rgba(0,0,0,.2)}
 .quickbar.hidden{display:none}
 .quick-group{display:flex;gap:6px;align-items:center;padding-right:8px;border-right:1px solid #d2d2d2}
 .quick-group:last-child{border-right:none}
-.quickbar select,.quickbar input[type="number"],.quickbar input[type="color"]{margin:0;background:#fff;color:#111;border:1px solid #bbb;padding:4px 6px;font-size:12px;width:auto}
+.quickbar select,.quickbar input[type="number"],.quickbar input[type="color"],.quickbar input[type="range"]{margin:0;background:#fff;color:#111;border:1px solid #bbb;padding:4px 6px;font-size:12px;width:auto}
 .quickbar input[type="color"]{width:34px;height:28px;padding:2px}
+.quickbar input[type="range"]{width:84px;padding:0;border:none;background:transparent}
 .quick-lbl{display:flex;align-items:center;gap:4px;font-size:11px;color:#333}
 
 .context-menu{position:fixed;z-index:1000;background:#191919;border:1px solid #555;border-radius:6px;padding:4px;display:none;min-width:190px}
