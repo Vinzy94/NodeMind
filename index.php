@@ -36,10 +36,10 @@
       </label>
     </div>
     <div class="quick-group">
-      <button class="btn" id="quickCopyFormat">Copia formato</button>
-      <button class="btn" id="quickPasteFormat">Incolla formato</button>
-      <button class="btn" id="quickCreateGroup">Crea gruppo</button>
-      <button class="btn" id="quickRemoveGroup">Rimuovi gruppo</button>
+      <button class="btn quick-icon-btn" id="quickCopyFormat" title="Copia formato">⧉</button>
+      <button class="btn quick-icon-btn" id="quickPasteFormat" title="Incolla formato">⎘</button>
+      <button class="btn quick-icon-btn" id="quickCreateGroup" title="Crea gruppo">⊞</button>
+      <button class="btn quick-icon-btn" id="quickRemoveGroup" title="Rimuovi gruppo">⊟</button>
     </div>
   </div>
 
