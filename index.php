@@ -9,7 +9,7 @@
 </head>
 <body>
 <div class="app-grid" id="appGrid">
-  <header class="title-bar"><div>NodeMind™ Studio</div><div class="actions"><button class="btn" id="importBtn">Importa</button><button class="btn" id="exportBtn">Esporta</button><button class="btn" id="saveBtn">Salva</button></div></header>
+  <header class="title-bar"><div>NodeMind™ Studio</div><div class="actions"><button class="btn" id="themeToggleBtn" title="Tema chiaro/scuro">☾</button><button class="btn" id="importBtn">Importa</button><button class="btn" id="exportBtn">Esporta</button><button class="btn" id="saveBtn">Salva</button></div></header>
   <div class="flows-bar" id="flowsBar"><div class="flow-tab active">Flow 1</div><button class="btn" id="addFlowBtn">+ Nuovo Flow</button><button class="btn" id="toggleQuickBar">Barra rapida</button></div>
 
 
@@ -60,6 +60,19 @@ A[Start] --> B[Step]"></textarea>
         <div class="small-note" id="inlinePropsTarget">Seleziona un nodo, gruppo o cavo per modificare le proprietà contestuali.</div>
         <label>Testo selezione
           <textarea id="sideTextEdit" placeholder="Testo nodo o titolo gruppo" rows="4"></textarea>
+        </label>
+        <label id="sideCodeWrap">Codice nodo
+          <textarea id="sideCodeEdit" placeholder="Scrivi codice..." rows="6"></textarea>
+        </label>
+        <label id="sideHtmlWrap">HTML nodo
+          <textarea id="sideHtmlEdit" placeholder="<div>...</div>" rows="6"></textarea>
+        </label>
+        <div class="small-note" id="sideHtmlPreview"></div>
+        <label id="sideEmojiWrap">Emoticon
+          <input type="text" id="sideEmojiEdit" placeholder="😀" maxlength="6">
+        </label>
+        <label id="sideOperatorWrap">Operatore connettore
+          <select id="sideOperatorEdit"><option>+</option><option>-</option><option>*</option><option>/</option><option>AND</option><option>OR</option><option>NOT</option></select>
         </label>
         <label>Colore cavo
           <input type="color" id="sideLinkColor" value="#222222">
@@ -135,6 +148,7 @@ const contextMenu = document.getElementById('contextMenu');
 const appGrid = document.getElementById('appGrid');
 const centerPanel = document.getElementById('centerPanel');
 const propertiesModal = document.getElementById('propertiesModal');
+const themeToggleBtn = document.getElementById('themeToggleBtn');
 
 const flows = new Map();
 let currentFlow = 'Flow 1';
@@ -152,12 +166,24 @@ let quickBarVisible = true;
 let inlineEditNodeId = null;
 
 const paletteData = [
-  { name:'Base', items:[{name:'Idea', color:'#2f80ed'},{name:'Concetto', color:'#8e44ad'},{name:'Nota', color:'#16a085'}] },
+  { name:'Base', items:[{name:'Idea', color:'#2f80ed', type:'default'},{name:'Concetto', color:'#8e44ad', type:'default'},{name:'Nota', color:'#16a085', type:'default'}] },
   { name:'Logica', items:[{name:'Decisione', color:'#d35400'},{name:'Regola', color:'#2980b9'},{name:'Condizione', color:'#27ae60'}] },
-  { name:'Output', items:[{name:'Risultato', color:'#e74c3c'},{name:'Documento', color:'#34495e'},{name:'Azione', color:'#7f8c8d'}] }
+  { name:'Output', items:[{name:'Risultato', color:'#e74c3c', type:'default'},{name:'Documento', color:'#34495e', type:'default'},{name:'Azione', color:'#7f8c8d', type:'default'}] },
+  { name:'Speciali', items:[{name:'Codice', color:'#b7f5b0', type:'code'},{name:'HTML', color:'#f7c56d', type:'html'},{name:'Emoticon', color:'#8e44ad', type:'emoji'}] },
+  { name:'Flowchart', items:[{name:'If', color:'#f1c40f', type:'if'},{name:'Attività', color:'#3498db', type:'activity'},{name:'In/Out', color:'#1abc9c', type:'inout'},{name:'Connettore', color:'#95a5a6', type:'connector'}] }
 ];
 
 function uid(prefix='n'){ return prefix + Math.random().toString(36).slice(2,9); }
+function nodeDefaultsByType(type='default'){
+  if(type === 'code') return {type, color:'#b7f5b0', fontFamily:'monospace', fontSize:13, textColor:'#1b5e20', textAlign:'left', label:'// codice\n', lockFont:true};
+  if(type === 'html') return {type, color:'#f7c56d', fontFamily:'Inter', fontSize:13, textColor:'#1f1f1f', textAlign:'left', label:'<b>HTML</b>'};
+  if(type === 'emoji') return {type, color:'#8e44ad', fontFamily:'Inter', fontSize:26, textColor:'#ffffff', textAlign:'center', label:'😀'};
+  if(type === 'if') return {type, color:'#f1c40f', fontFamily:'Inter', fontSize:14, textColor:'#1f1f1f', textAlign:'center', label:'Condizione?'};
+  if(type === 'activity') return {type, color:'#3498db', fontFamily:'Inter', fontSize:14, textColor:'#ffffff', textAlign:'center', label:'Attività'};
+  if(type === 'inout') return {type, color:'#1abc9c', fontFamily:'Inter', fontSize:14, textColor:'#ffffff', textAlign:'center', label:'Input/Output'};
+  if(type === 'connector') return {type, color:'#95a5a6', fontFamily:'Inter', fontSize:14, textColor:'#111111', textAlign:'center', label:'+', operator:'+'};
+  return {type:'default'};
+}
 function initFlow(name){
   if(!flows.has(name)) flows.set(name, {nodes:[],links:[],groups:[],notes:'',tasks:'',docStyle:{fontFamily:'Inter',fontSize:14,textColor:'#e8e8e8'}});
   const f = flows.get(name);
@@ -166,12 +192,23 @@ function initFlow(name){
 }
 function getFlow(){ initFlow(currentFlow); return flows.get(currentFlow); }
 
+function portSidesForNode(node){
+  if(node.type === 'if') return ['left','right'];
+  return ['left','right','top','bottom'];
+}
+
 function measureNodeWidth(node){
+  if(node.type === 'connector') return 78;
+  if(node.type === 'if') return 170;
+  if(node.type === 'code') return 300;
   const lines = String(node.label || '').split('\n');
   const longest = Math.max(...lines.map(l => l.length), 6);
   return Math.min(340, Math.max(140, longest * ((node.fontSize || 14) * 0.62)));
 }
 function measureNodeHeight(node){
+  if(node.type === 'connector') return 78;
+  if(node.type === 'if') return 110;
+  if(node.type === 'code') return Math.max(110, 30 + String(node.label || '').split('\n').length * 18);
   const lines = String(node.label || '').split('\n').length;
   return Math.max(48, 20 + lines * ((node.fontSize || 14) * 1.35));
 }
@@ -199,18 +236,41 @@ function renderPalette(){
       row.draggable = true;
       row.innerHTML = `<span class="palette-swatch" style="background:${item.color}"></span><span class="palette-item-name">${item.name}</span><div class="palette-item-tools"><input class="inline-color" type="color" value="${item.color}"><button class="mini-btn">+</button></div>`;
       row.addEventListener('dragstart', e => e.dataTransfer.setData('application/json', JSON.stringify(item)));
-      row.onclick = (e) => { if(e.target.closest('.palette-item-tools')) return; addNode({label:item.name,color:item.color,x:80,y:80}); };
+      row.onclick = (e) => {
+        if(e.target.closest('.palette-item-tools')) return;
+        const special = ['code','html','emoji','if','activity','inout','connector'].includes(item.type || '');
+        addNode({label:special ? undefined : item.name,color:item.color,x:80,y:80,type:item.type || 'default'});
+      };
       row.querySelector('.inline-color').oninput = (e) => { item.color = e.target.value; row.querySelector('.palette-swatch').style.background = item.color; };
-      row.querySelector('.mini-btn').onclick = (e) => { e.stopPropagation(); addNode({label:item.name,color:item.color,x:100,y:100}); };
+      row.querySelector('.mini-btn').onclick = (e) => {
+        e.stopPropagation();
+        const special = ['code','html','emoji','if','activity','inout','connector'].includes(item.type || '');
+        addNode({label:special ? undefined : item.name,color:item.color,x:100,y:100,type:item.type || 'default'});
+      };
       list.appendChild(row);
     });
     paletteCategories.appendChild(block);
   });
 }
 
-function addNode({id=uid(),label='Nodo',color='#2f80ed',x=80,y=80,fontSize=14,fontFamily='Inter',textColor='#ffffff',textAlign='center'}){
+function addNode({id=uid(),label=null,color=null,x=80,y=80,fontSize=14,fontFamily='Inter',textColor='#ffffff',textAlign='center',type='default',operator='+'}){
   const flow = getFlow();
-  flow.nodes.push({id,label,color,x,y,fontSize,fontFamily,textColor,textAlign});
+  const defaults = nodeDefaultsByType(type);
+  const step = flow.nodes.length % 6;
+  const yy = y + Math.floor(flow.nodes.length / 6) * 90;
+  flow.nodes.push({
+    id,
+    label: label ?? defaults.label ?? 'Nodo',
+    color: color ?? defaults.color ?? '#2f80ed',
+    x: x + step * 36,y: yy,
+    fontSize: defaults.fontSize ?? fontSize,
+    fontFamily: defaults.fontFamily ?? fontFamily,
+    textColor: defaults.textColor ?? textColor,
+    textAlign: defaults.textAlign ?? textAlign,
+    type: defaults.type || type,
+    lockFont: defaults.lockFont || false,
+    operator: defaults.operator || operator
+  });
   selectedNodeIds = new Set([id]);
   renderScene();
   updateMermaid();
@@ -270,19 +330,22 @@ function renderNodes(){
   flow.nodes.forEach(nodeData => {
     const node = document.createElement('div');
     node.className = 'node' + (selectedNodeIds.has(nodeData.id) ? ' selected' : '');
+    if(nodeData.type) node.classList.add('type-' + nodeData.type);
     node.dataset.id = nodeData.id;
     node.style.left = nodeData.x + 'px';
     node.style.top = nodeData.y + 'px';
     node.style.background = nodeData.color;
     node.style.color = nodeData.textColor || '#fff';
-    node.style.fontFamily = nodeData.fontFamily || 'Inter';
+    node.style.fontFamily = nodeData.lockFont ? 'monospace' : (nodeData.fontFamily || 'Inter');
     node.style.fontSize = (nodeData.fontSize || 14) + 'px';
     node.style.width = measureNodeWidth(nodeData) + 'px';
     node.style.textAlign = nodeData.textAlign || 'center';
 
     const label = document.createElement('div');
     label.className = 'node-label';
-    label.textContent = nodeData.label;
+    if(nodeData.type === 'html') label.innerHTML = nodeData.label;
+    else label.textContent = nodeData.label;
+    if(nodeData.type === 'if') label.classList.add('diamond-text');
     node.appendChild(label);
 
     const toolbar = document.createElement('div');
@@ -290,17 +353,24 @@ function renderNodes(){
     toolbar.innerHTML = '<button class="mini-btn" data-act="dup">Dup</button><button class="mini-btn" data-act="del">Del</button>';
     node.appendChild(toolbar);
 
-    ['left','right','top','bottom'].forEach(side => {
+    portSidesForNode(nodeData).forEach(side => {
       const p = document.createElement('span');
       p.className = 'port ' + side;
       p.dataset.nodeId = nodeData.id;
       p.dataset.side = side;
       p.onpointerdown = (e) => startLinkDrag(e, nodeData.id, side);
+      p.onmousedown = (e) => startLinkDrag(e, nodeData.id, side);
       node.appendChild(p);
+      if(nodeData.type === 'if' && (side === 'left' || side === 'right')){
+        const tag = document.createElement('span');
+        tag.className = 'port-tag ' + side;
+        tag.textContent = side === 'right' ? 'Vero' : 'Falso';
+        node.appendChild(tag);
+      }
     });
 
     node.onmousedown = (e) => {
-      if(e.target.classList.contains('port') || e.target.closest('.node-toolbar')) return;
+      if(e.detail > 1 || e.target.classList.contains('port') || e.target.closest('.node-toolbar')) return;
       let changed = false;
       if(e.shiftKey || e.ctrlKey || e.metaKey){
         if(selectedNodeIds.has(nodeData.id)) selectedNodeIds.delete(nodeData.id); else selectedNodeIds.add(nodeData.id);
@@ -324,12 +394,15 @@ function renderNodes(){
       if(e.target.classList.contains('port')) return;
       e.stopPropagation();
       selectSingleNode(nodeData.id);
-      startInlineEdit(node, nodeData);
+      requestAnimationFrame(() => {
+        const fresh = scene.querySelector(`.node[data-id="${nodeData.id}"]`);
+        if(fresh) startInlineEdit(fresh, nodeData);
+      });
     };
 
     node.oncontextmenu = (e) => { e.preventDefault(); showNodeMenu(e.clientX, e.clientY, nodeData.id); };
 
-    node.querySelector('[data-act="dup"]').onclick = (e) => { e.stopPropagation(); addNode({label:nodeData.label,color:nodeData.color,x:nodeData.x+24,y:nodeData.y+24,fontSize:nodeData.fontSize||14,fontFamily:nodeData.fontFamily||'Inter',textColor:nodeData.textColor||'#fff'}); };
+    node.querySelector('[data-act="dup"]').onclick = (e) => { e.stopPropagation(); addNode({label:nodeData.label,color:nodeData.color,x:nodeData.x+24,y:nodeData.y+24,fontSize:nodeData.fontSize||14,fontFamily:nodeData.fontFamily||'Inter',textColor:nodeData.textColor||'#fff',textAlign:nodeData.textAlign||'center',type:nodeData.type||'default',operator:nodeData.operator||'+'}); };
     node.querySelector('[data-act="del"]').onclick = (e) => { e.stopPropagation(); deleteNodes([nodeData.id]); };
     scene.appendChild(node);
   });
@@ -355,10 +428,13 @@ function renderScene(){
 }
 
 function startInlineEdit(nodeEl, nodeData){
+  if(nodeData.type === 'connector') return;
   inlineEditNodeId = nodeData.id;
   const label = nodeEl.querySelector('.node-label');
   label.contentEditable = 'true';
   label.classList.add('editing');
+  label.spellcheck = false;
+  label.onmousedown = (e) => e.stopPropagation();
   label.focus();
 
   const finish = (cancel=false) => {
@@ -366,8 +442,8 @@ function startInlineEdit(nodeEl, nodeData){
     inlineEditNodeId = null;
     label.contentEditable = 'false';
     label.classList.remove('editing');
-    if(cancel) label.textContent = nodeData.label;
-    nodeData.label = label.textContent.replace(/\r/g, '');
+    if(cancel) label[nodeData.type === 'html' ? 'innerHTML' : 'textContent'] = nodeData.label;
+    nodeData.label = (nodeData.type === 'html' ? label.innerHTML : label.textContent).replace(/\r/g, '');
     updateMermaid();
     renderScene();
   };
@@ -403,16 +479,31 @@ scene.addEventListener('pointermove', (ev) => {
 
 document.addEventListener('pointerup', (ev) => {
   if(draggingLink){
-    const target = document.elementFromPoint(ev.clientX, ev.clientY);
+    const stack = document.elementsFromPoint(ev.clientX, ev.clientY);
+    const target = stack.find(el => el.classList?.contains('port')) || stack.find(el => el.classList?.contains('node')) || stack[0];
+    let toNodeId = null;
+    let toSide = null;
     if(target && target.classList.contains('port')){
-      const toNodeId = target.dataset.nodeId, toSide = target.dataset.side;
-      if(toNodeId && toNodeId !== draggingLink.from){
-        const flow = getFlow();
-        flow.links.push({id:uid('l'),from:draggingLink.from,to:toNodeId,fromSide:draggingLink.fromSide,toSide,color:'#222222',width:2,shape:'curve'});
-        selectedLinkId = flow.links[flow.links.length-1].id;
-        selectedNodeIds.clear(); selectedGroupId = null;
-        updateMermaid();
+      toNodeId = target.dataset.nodeId;
+      toSide = target.dataset.side;
+    } else if(target){
+      const nodeEl = target.closest('.node');
+      if(nodeEl){
+        toNodeId = nodeEl.dataset.id;
+        const nodeData = getFlow().nodes.find(n => n.id === toNodeId);
+        const sides = nodeData ? portSidesForNode(nodeData) : ['left','right'];
+        const fromSide = draggingLink.fromSide || 'right';
+        if(sides.includes('left') && fromSide === 'right') toSide = 'left';
+        else if(sides.includes('right') && fromSide === 'left') toSide = 'right';
+        else toSide = sides.includes('left') ? 'left' : (sides[0] || 'right');
       }
+    }
+    if(toNodeId && toNodeId !== draggingLink.from){
+      const flow = getFlow();
+      flow.links.push({id:uid('l'),from:draggingLink.from,to:toNodeId,fromSide:draggingLink.fromSide,toSide:toSide || 'left',color:'#222222',width:2,shape:'curve'});
+      selectedLinkId = flow.links[flow.links.length-1].id;
+      selectedNodeIds.clear(); selectedGroupId = null;
+      updateMermaid();
     }
     draggingLink = null;
     renderScene();
@@ -422,6 +513,54 @@ document.addEventListener('pointerup', (ev) => {
 
 function drawCurve(x1,y1,x2,y2){ const cx=(x1+x2)/2; return `M ${x1} ${y1} C ${cx} ${y1}, ${cx} ${y2}, ${x2} ${y2}`; }
 function drawOrthogonal(x1,y1,x2,y2){ const mid=(x1+x2)/2; return `M ${x1} ${y1} L ${mid} ${y1} L ${mid} ${y2} L ${x2} ${y2}`; }
+
+function pointSegDist(px,py,x1,y1,x2,y2){
+  const dx = x2 - x1, dy = y2 - y1;
+  if(dx === 0 && dy === 0) return Math.hypot(px - x1, py - y1);
+  const t = Math.max(0, Math.min(1, ((px-x1)*dx + (py-y1)*dy) / (dx*dx + dy*dy)));
+  const cx = x1 + t*dx, cy = y1 + t*dy;
+  return Math.hypot(px-cx, py-cy);
+}
+
+function bezierPoint(t, p0, p1, p2, p3){
+  const u = 1 - t;
+  const tt = t*t, uu = u*u;
+  const uuu = uu*u, ttt = tt*t;
+  return {
+    x: (uuu*p0.x) + (3*uu*t*p1.x) + (3*u*tt*p2.x) + (ttt*p3.x),
+    y: (uuu*p0.y) + (3*uu*t*p1.y) + (3*u*tt*p2.y) + (ttt*p3.y)
+  };
+}
+
+function linkDistanceToPoint(link, x, y){
+  const flow = getFlow();
+  const from = flow.nodes.find(n => n.id === link.from);
+  const to = flow.nodes.find(n => n.id === link.to);
+  if(!from || !to) return Infinity;
+  const p1 = portPos(from, link.fromSide || 'right');
+  const p2 = portPos(to, link.toSide || 'left');
+
+  if((link.shape || 'curve') === 'orthogonal'){
+    const mid = (p1.x + p2.x) / 2;
+    return Math.min(
+      pointSegDist(x,y,p1.x,p1.y,mid,p1.y),
+      pointSegDist(x,y,mid,p1.y,mid,p2.y),
+      pointSegDist(x,y,mid,p2.y,p2.x,p2.y)
+    );
+  }
+
+  const cx = (p1.x + p2.x)/2;
+  const c1 = {x:cx, y:p1.y}, c2 = {x:cx, y:p2.y};
+  let min = Infinity;
+  let prev = p1;
+  for(let i=1;i<=20;i++){
+    const t = i/20;
+    const pt = bezierPoint(t, p1, c1, c2, p2);
+    min = Math.min(min, pointSegDist(x,y,prev.x,prev.y,pt.x,pt.y));
+    prev = pt;
+  }
+  return min;
+}
 
 function drawLinks(){
   const flow = getFlow();
@@ -447,8 +586,9 @@ function drawLinks(){
     path.setAttribute('stroke-width', String(link.width || 2));
     path.setAttribute('stroke-linecap', 'round');
     hitPath.setAttribute('fill', 'none');
-    hitPath.setAttribute('stroke', 'transparent');
+    hitPath.setAttribute('stroke', 'rgba(0,0,0,0.001)');
     hitPath.setAttribute('stroke-width', String(Math.max(12, Number(link.width || 2) + 8)));
+    hitPath.classList.add('link-hit-path');
     hitPath.style.pointerEvents = 'stroke';
     hitPath.style.cursor = 'pointer';
     const selectLink = (e) => {
@@ -669,7 +809,7 @@ function fillNodeInputsFromSelection(){
   nodeText.value = first.label || '';
   nodeColor.value = first.color || '#2f80ed';
   nodeTextColor.value = first.textColor || '#ffffff';
-  nodeFontFamily.value = first.fontFamily || 'Inter';
+  nodeFontFamily.value = first.lockFont ? 'Courier New' : (first.fontFamily || 'Inter');
   nodeFontSize.value = first.fontSize || 14;
   nodeTextAlign.value = first.textAlign || 'center';
   quickFontFamily.value = first.fontFamily || 'Inter';
@@ -762,9 +902,20 @@ function updateInlinePropsPanel(){
   const flow = getFlow();
   const target = document.getElementById('inlinePropsTarget');
   const textArea = document.getElementById('sideTextEdit');
+  const codeWrap = document.getElementById('sideCodeWrap');
+  const codeEdit = document.getElementById('sideCodeEdit');
+  const htmlWrap = document.getElementById('sideHtmlWrap');
+  const htmlEdit = document.getElementById('sideHtmlEdit');
+  const htmlPreview = document.getElementById('sideHtmlPreview');
+  const emojiWrap = document.getElementById('sideEmojiWrap');
+  const emojiEdit = document.getElementById('sideEmojiEdit');
+  const opWrap = document.getElementById('sideOperatorWrap');
+  const opEdit = document.getElementById('sideOperatorEdit');
   const sideColor = document.getElementById('sideLinkColor');
   const sideWidth = document.getElementById('sideLinkWidth');
   const sideShape = document.getElementById('sideLinkShape');
+
+  [codeWrap, htmlWrap, htmlPreview, emojiWrap, opWrap].forEach(el => el.style.display = 'none');
 
   if(selectedLinkId){
     const l = flow.links.find(v => v.id === selectedLinkId);
@@ -797,6 +948,24 @@ function updateInlinePropsPanel(){
     target.textContent = 'Selezionato: nodo';
     textArea.disabled = false;
     textArea.value = n?.label || '';
+    if(n?.type === 'code'){
+      codeWrap.style.display = 'grid';
+      codeEdit.value = n.label || '';
+    }
+    if(n?.type === 'html'){
+      htmlWrap.style.display = 'grid';
+      htmlPreview.style.display = 'block';
+      htmlEdit.value = n.label || '';
+      htmlPreview.innerHTML = '<strong>Preview:</strong><div>' + (n.label || '') + '</div>';
+    }
+    if(n?.type === 'emoji'){
+      emojiWrap.style.display = 'grid';
+      emojiEdit.value = n.label || '';
+    }
+    if(n?.type === 'connector'){
+      opWrap.style.display = 'grid';
+      opEdit.value = n.operator || n.label || '+';
+    }
     return;
   }
   target.textContent = selectedNodeIds.size > 1 ? `Selezionati: ${selectedNodeIds.size} nodi` : 'Seleziona un nodo, gruppo o cavo per modificare le proprietà contestuali.';
@@ -873,8 +1042,10 @@ function applyQuickFormatting(useFill=false){
   if(selectedNodeIds.size){
     flow.nodes.forEach(node => {
       if(selectedNodeIds.has(node.id)){
-        node.fontFamily = quickFontFamily.value || node.fontFamily;
-        node.fontSize = Math.max(10, Math.min(48, Number(quickFontSize.value || node.fontSize || 14)));
+        if(!node.lockFont){
+          node.fontFamily = quickFontFamily.value || node.fontFamily;
+          node.fontSize = Math.max(10, Math.min(48, Number(quickFontSize.value || node.fontSize || 14)));
+        }
         node.textColor = quickTextColor.value;
         node.textAlign = quickTextAlign.value || 'center';
         if(useFill) node.color = quickNodeColor.value;
@@ -1005,6 +1176,9 @@ function loadLocal(){
     (data.flows || []).forEach(([name,val]) => flows.set(name,val));
     currentFlow = data.currentFlow || currentFlow;
   } catch {}
+  const theme = localStorage.getItem('nodemind_theme') || 'dark';
+  document.body.classList.toggle('theme-light', theme === 'light');
+  themeToggleBtn.textContent = theme === 'light' ? '☀' : '☾';
   if(!flows.size) initFlow(currentFlow);
   renderFlows();
   loadFlowUI();
@@ -1107,6 +1281,13 @@ addFlowBtn.onclick = () => {
   loadFlowUI();
 };
 
+themeToggleBtn.onclick = () => {
+  const light = !document.body.classList.contains('theme-light');
+  document.body.classList.toggle('theme-light', light);
+  themeToggleBtn.textContent = light ? '☀' : '☾';
+  localStorage.setItem('nodemind_theme', light ? 'light' : 'dark');
+};
+
 document.getElementById('applyMermaid').onclick = importMermaidFromText;
 applyNodeStyle.onclick = () => {
   const flow = getFlow();
@@ -1116,8 +1297,10 @@ applyNodeStyle.onclick = () => {
         if(selectedNodeIds.size === 1) node.label = nodeText.value || node.label;
         node.color = nodeColor.value;
         node.textColor = nodeTextColor.value;
-        node.fontFamily = nodeFontFamily.value || 'Inter';
-        node.fontSize = Math.max(10, Math.min(48, Number(nodeFontSize.value || 14)));
+        if(!node.lockFont){
+          node.fontFamily = nodeFontFamily.value || 'Inter';
+          node.fontSize = Math.max(10, Math.min(48, Number(nodeFontSize.value || 14)));
+        }
         node.textAlign = nodeTextAlign.value || 'center';
       }
     });
@@ -1149,6 +1332,47 @@ document.getElementById('sideTextEdit').addEventListener('input', (e) => {
     updateMermaid();
     renderScene();
   }
+});
+
+document.getElementById('sideCodeEdit').addEventListener('input', (e) => {
+  const flow = getFlow();
+  const node = flow.nodes.find(n => selectedNodeIds.has(n.id));
+  if(!node || node.type !== 'code') return;
+  node.label = e.target.value;
+  nodeText.value = node.label;
+  updateMermaid();
+  renderScene();
+});
+
+document.getElementById('sideHtmlEdit').addEventListener('input', (e) => {
+  const flow = getFlow();
+  const node = flow.nodes.find(n => selectedNodeIds.has(n.id));
+  if(!node || node.type !== 'html') return;
+  node.label = e.target.value;
+  nodeText.value = node.label;
+  updateMermaid();
+  renderScene();
+});
+
+document.getElementById('sideEmojiEdit').addEventListener('input', (e) => {
+  const flow = getFlow();
+  const node = flow.nodes.find(n => selectedNodeIds.has(n.id));
+  if(!node || node.type !== 'emoji') return;
+  node.label = e.target.value || '😀';
+  nodeText.value = node.label;
+  updateMermaid();
+  renderScene();
+});
+
+document.getElementById('sideOperatorEdit').addEventListener('change', (e) => {
+  const flow = getFlow();
+  const node = flow.nodes.find(n => selectedNodeIds.has(n.id));
+  if(!node || node.type !== 'connector') return;
+  node.operator = e.target.value;
+  node.label = e.target.value;
+  nodeText.value = node.label;
+  updateMermaid();
+  renderScene();
 });
 
 const applySideLinkProps = () => {
@@ -1222,15 +1446,42 @@ scene.addEventListener('dragover', e => e.preventDefault());
 scene.addEventListener('drop', e => {
   e.preventDefault();
   const rect = scene.getBoundingClientRect();
-  let item = {name:'Nodo', color:'#2f80ed'};
+  let item = {name:'Nodo', color:'#2f80ed', type:'default'};
   try { item = JSON.parse(e.dataTransfer.getData('application/json')); } catch {}
-  addNode({label:item.name,color:item.color,x:(e.clientX-rect.left)/zoom,y:(e.clientY-rect.top)/zoom,fontFamily:'Inter',textColor:'#fff',textAlign:'center'});
+  addNode({label:item.name,color:item.color,x:(e.clientX-rect.left)/zoom,y:(e.clientY-rect.top)/zoom,fontFamily:'Inter',textColor:'#fff',textAlign:'center',type:item.type || 'default'});
 });
 
 notesArea.addEventListener('input', saveLocal);
 taskArea.addEventListener('input', saveLocal);
 
-linkLayer.addEventListener('click', () => { selectedNodeIds.clear(); selectedGroupId = null; selectedLinkId = null; setPropertiesMode('all'); renderScene(); });
+linkLayer.addEventListener('click', (e) => {
+  if(e.target && e.target.tagName && e.target.tagName.toLowerCase() === 'path') return;
+  selectedNodeIds.clear(); selectedGroupId = null; selectedLinkId = null; setPropertiesMode('all'); renderScene();
+});
+
+scene.addEventListener('click', (e) => {
+  if(e.target.closest('.node') || e.target.closest('.node-group') || e.target.classList.contains('port')) return;
+  const rect = scene.getBoundingClientRect();
+  const x = (e.clientX - rect.left) / zoom;
+  const y = (e.clientY - rect.top) / zoom;
+  const flow = getFlow();
+  let best = null;
+  let bestDist = Infinity;
+  flow.links.forEach(l => {
+    const d = linkDistanceToPoint(l, x, y);
+    if(d < bestDist){ bestDist = d; best = l; }
+  });
+  if(best && bestDist <= 10){
+    selectedLinkId = best.id;
+    selectedNodeIds.clear();
+    selectedGroupId = null;
+    setPropertiesMode('link');
+    linkColor.value = best.color || '#222222';
+    linkWidth.value = String(best.width || 2);
+    linkShape.value = best.shape || 'curve';
+    renderScene();
+  }
+});
 
 document.addEventListener('keydown', (e) => {
   const activeTag = (document.activeElement?.tagName || '').toLowerCase();
